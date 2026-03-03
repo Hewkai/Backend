@@ -1,9 +1,14 @@
+import os
+from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import mysql.connector
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from neo4j import GraphDatabase
+
+# โหลดค่าจากไฟล์ .env
+load_dotenv()
 
 app = Flask(__name__)
 # อนุญาต CORS ทุกกรณีเพื่อป้องกันปัญหาการเชื่อมต่อ
@@ -13,25 +18,28 @@ CORS(app)
 # 1. CONFIGURATION
 # ==========================================
 
-# Database MySQL 
+# Database MySQL
 MYSQL_CONFIG = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': '',      
-    'database': 'cookies_db'
+    'host': os.getenv('MYSQL_HOST', 'localhost'),
+    'user': os.getenv('MYSQL_USER', 'root'),
+    'password': os.getenv('MYSQL_PASSWORD', ''),      
+    'database': os.getenv('MYSQL_DATABASE', 'cookies_db')
 }
 
-# Neo4j Aura Config (Cloud)
-NEO4J_URI = "neo4j+s://6de2c581.databases.neo4j.io" 
-NEO4J_USER = "neo4j"
-NEO4J_PASSWORD = "Vj47n2DOiNqTBDvfz7fSkj_OPd7ZH30QZSzdfNKKSxA"
+# Neo4j Aura Config (Cloud) 
+NEO4J_URI = os.getenv('NEO4J_URI')
+NEO4J_USER = os.getenv('NEO4J_USER')
+NEO4J_PASSWORD = os.getenv('NEO4J_PASSWORD')
 
 # Initialize Neo4j Driver
 driver = None
 try:
-    driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
-    driver.verify_connectivity()
-    print("[SYSTEM] Neo4j Aura Connected Successfully!")
+    if NEO4J_URI and NEO4J_USER and NEO4J_PASSWORD:
+        driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+        driver.verify_connectivity()
+        print("[SYSTEM] Neo4j Aura Connected Successfully!")
+    else:
+        print("[ERROR] Neo4j Config is missing from .env file!")
 except Exception as e:
     print(f"[ERROR] Neo4j Connection Failed: {e}")
 
@@ -83,7 +91,7 @@ def push_to_neo4j(source_site, tracker_domain, label):
                 MERGE (s)-[r:SENDS_DATA_TO]->(t)
                 SET r.type = $cookie_type, r.last_seen = datetime()
                 """
-                session.run(query, site=source_site, tracker=tracker_domain, cookie_type=label)     
+                session.run(query, site=source_site, tracker=tracker_domain, cookie_type=label)    
             print(f"[SUCCESS] Graph Updated: {source_site} -> {tracker_domain}")
         except Exception as e:
             print(f"[ERROR] Neo4j Error: {e}")

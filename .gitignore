@@ -3,6 +3,7 @@ venv10/
 venv/
 node_modules/
 __pycache__/
+.env
 
 # ไฟล์โมเดลและไฟล์ฐานข้อมูลที่ใหญ่เกินไป
 hf_cookie_model_balanced/
