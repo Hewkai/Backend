@@ -8,47 +8,104 @@
         #mynetwork { width: 100vw; height: 100vh; background: #ffffff; position: absolute; top: 0; left: 0; z-index: 1; }
         
         /* Control Panel */
-        .controls { position: absolute; top: 15px; left: 15px; z-index: 100; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        button { padding: 8px 18px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: background 0.2s; }
+        .controls { 
+            position: absolute; top: 15px; left: 15px; z-index: 100; 
+            background: rgba(255, 255, 255, 0.95); padding: 20px; 
+            border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); 
+            min-width: 280px; max-height: 90vh; overflow-y: auto;
+        }
+        button { 
+            width: 100%; padding: 10px; background: #28a745; color: white; 
+            border: none; border-radius: 6px; cursor: pointer; 
+            font-weight: bold; transition: background 0.2s; margin-top: 15px;
+        }
         button:hover { background: #218838; }
 
+        /* Statistics & Filter Panel */
+        .panel-section { margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px; }
+        .stat-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 13px; }
+        .stat-label { font-weight: 500; color: #555; display: flex; align-items: center; cursor: pointer; }
+        .stat-label input { margin-right: 10px; cursor: pointer; }
+        .stat-value { font-weight: bold; font-size: 14px; color: #333; }
+
         /* Graph Legend */
-        .legend { position: absolute; bottom: 25px; right: 25px; z-index: 100; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-size: 13px; color: #333; min-width: 240px; }
+        .legend { 
+            position: absolute; bottom: 25px; right: 25px; z-index: 100; 
+            background: rgba(255, 255, 255, 0.95); padding: 15px; 
+            border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+            font-size: 13px; color: #333; min-width: 240px; 
+        }
         .legend h4 { margin: 0 0 10px 0; border-bottom: 1px solid #eee; padding-bottom: 5px; color: #2c3e50; }
-        
         .legend-section { margin-bottom: 10px; font-weight: bold; font-size: 11px; color: #7f8c8d; text-transform: uppercase; letter-spacing: 0.5px; }
         .legend-item { display: flex; align-items: center; margin-bottom: 8px; }
-        
-        /* Legend Visuals */
         .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 10px; }
         .line { width: 25px; height: 4px; border-radius: 2px; display: inline-block; margin-right: 10px; }
-        
         .footer-note { font-size: 11px; color: #666; margin-top: 8px; border-top: 1px solid #eee; padding-top: 8px; line-height: 1.4; }
     </style>
     <script src="vis-network.min.js"></script>
 </head>
 <body>
     <div class="controls">
-        <h3 style="margin:0 0 5px 0;">Cookie Tracker Graph</h3>
-        <button id="refreshBtn">Reload Graph</button>
+        <h3 style="margin:0 0 5px 0; color: #2c3e50;">Cookie Tracker Graph</h3>
+        <p style="font-size: 12px; color: #7f8c8d; margin: 0;">Visualization of your privacy footprint</p>
+        
+        <div class="panel-section">
+            <div class="legend-section">Cookie Distribution & Filter</div>
+            
+            <div class="stat-row">
+                <label class="stat-label" style="color: #2ecc71;">
+                    <input type="checkbox" class="filter-check" value="STRICTLY" checked> Necessary
+                </label>
+                <span class="stat-value" id="pct-necessary">0%</span>
+            </div>
+            
+            <div class="stat-row">
+                <label class="stat-label" style="color: #f1c40f;">
+                    <input type="checkbox" class="filter-check" value="PERFORMANCE" checked> Performance
+                </label>
+                <span class="stat-value" id="pct-performance">0%</span>
+            </div>
+            
+            <div class="stat-row">
+                <label class="stat-label" style="color: #3498db;">
+                    <input type="checkbox" class="filter-check" value="FUNCTIONALITY" checked> Functionality
+                </label>
+                <span class="stat-value" id="pct-functionality">0%</span>
+            </div>
+            
+            <div class="stat-row">
+                <label class="stat-label" style="color: #e74c3c;">
+                    <input type="checkbox" class="filter-check" value="TRACKING" checked> Tracking
+                </label>
+                <span class="stat-value" id="pct-tracking">0%</span>
+            </div>
+            
+            <div class="stat-row">
+                <label class="stat-label" style="color: #34495e;">
+                    <input type="checkbox" class="filter-check" value="UNKNOWN" checked> Unknown
+                </label>
+                <span class="stat-value" id="pct-unknown">0%</span>
+            </div>
+        </div>
+
+        <button id="refreshBtn">Reload Graph Data</button>
     </div>
 
     <div class="legend">
         <h4>Graph Legend</h4>
-        
         <div class="legend-section">Nodes</div>
         <div class="legend-item">
-            <span class="dot" style="background:#1e8449; border: 1px solid #145a32;"></span>
-            <span><b>Green Node:</b> Source Website</span>
+            <span class="dot" style="background:#2ecc71; border: 1px solid #27ae60;"></span>
+            <span><b>Website:</b> Site you visited</span>
         </div>
         <div class="legend-item">
-            <span class="dot" style="background:#e74c3c;"></span>
-            <span><b>Red Node:</b> Known Tracker</span>
+            <span class="dot" style="background:#e74c3c; border: 1px solid #c0392b;"></span>
+            <span><b>Tracker:</b> Data recipient</span>
         </div>
 
         <div style="margin: 12px 0; border-top: 1px solid #eee;"></div>
 
-        <div class="legend-section">Cookie Types (Edges)</div>
+        <div class="legend-section">Data Flow (Edges)</div>
         <div class="legend-item">
             <span class="line" style="background:#2ecc71;"></span>
             <span>Strictly Necessary</span>
@@ -67,7 +124,8 @@
         </div>
 
         <div class="footer-note">
-            * Arrows (➔) indicate data flow direction.<br>
+            * Uncheck categories to hide them from the graph.<br>
+            * Arrows (➔) show data flow direction.
         </div>
     </div>
 

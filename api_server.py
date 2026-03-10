@@ -50,15 +50,12 @@ print("[SYSTEM] Loading AI Models...")
 HF_MODEL_DIR = './hf_cookie_model_balanced' 
 
 try:
-    # ใช้ AutoTokenizer และ SequenceClassification 
     tokenizer = AutoTokenizer.from_pretrained(HF_MODEL_DIR)
     model = AutoModelForSequenceClassification.from_pretrained(HF_MODEL_DIR)
     
-    # ตรวจสอบว่าเครื่องมีการ์ดจอไหม ถ้าไม่มีให้ใช้ CPU 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device).eval()
     
-    # ดึง Label ออกมาจากสมองของโมเดลโดยตรง
     ID2LABEL = model.config.id2label
     print(f"[SYSTEM] AI Model (Balanced) Loaded Successfully on {device}!")
 
@@ -67,11 +64,11 @@ except Exception as e:
     ID2LABEL = {0: "Unknown"}
 
 # ==========================================
-# 3. NEO4J FUNCTION
+# 3. NEO4J FUNCTION (UPDATED FOR MULTI-USER)
 # ==========================================
 
-def push_to_neo4j(source_site, tracker_domain, label):
-    if not tracker_domain: return
+def push_to_neo4j(user_id, source_site, tracker_domain, label):
+    if not user_id or not tracker_domain: return
     if not source_site or source_site == "Unknown": source_site = "Unknown_Source"
     
     # แก้ชื่อ Extension ยาวๆ
@@ -80,19 +77,22 @@ def push_to_neo4j(source_site, tracker_domain, label):
 
     if source_site == tracker_domain: return
 
-    print(f"[DEBUG] Graph Plotting: {source_site} -> {tracker_domain} ({label})")
+    print(f"[DEBUG] Graph Plotting for {user_id}: {source_site} -> {tracker_domain} ({label})")
 
     if driver:
         try:
             with driver.session() as session:
+                # แก้ไข Query ให้เชื่อมโยงข้อมูลเข้ากับ User Node เฉพาะบุคคล
                 query = """
+                MERGE (u:User {id: $u_id})
                 MERGE (s:Website {name: $site})
                 MERGE (t:Tracker {name: $tracker})
+                MERGE (u)-[:OWNS_HISTORY]->(s)
                 MERGE (s)-[r:SENDS_DATA_TO]->(t)
                 SET r.type = $cookie_type, r.last_seen = datetime()
                 """
-                session.run(query, site=source_site, tracker=tracker_domain, cookie_type=label)    
-            print(f"[SUCCESS] Graph Updated: {source_site} -> {tracker_domain}")
+                session.run(query, u_id=user_id, site=source_site, tracker=tracker_domain, cookie_type=label)    
+            print(f"[SUCCESS] Graph Updated for User: {user_id}")
         except Exception as e:
             print(f"[ERROR] Neo4j Error: {e}")
 
@@ -102,34 +102,24 @@ def push_to_neo4j(source_site, tracker_domain, label):
 
 @app.route('/', methods=['GET'])
 def home():
-    return "CookiesChecker API is Running with High Accuracy Model!"
-
-# --- ซ่อน API History  ---
-# @app.route('/history', methods=['GET'])
-# def get_history():
-#     try:
-#         conn = mysql.connector.connect(**MYSQL_CONFIG)
-#         cursor = conn.cursor(dictionary=True)
-#         sql = "SELECT domain, GROUP_CONCAT(DISTINCT label SEPARATOR ', ') as labels FROM cookies GROUP BY domain ORDER BY MAX(id) DESC LIMIT 20"
-#         cursor.execute(sql)
-#         rows = cursor.fetchall()
-#         conn.close()
-#         return jsonify(rows)
-#     except Exception as e:
-#         return jsonify([])
+    return "CookiesChecker API is Running with Multi-User Support!"
 
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
         data = request.json
+        user_id = data.get('user_id') # รับ user_id จาก Extension
         name = data.get('name', '')
         domain = data.get('domain', '')
         source_site = data.get('source_site', 'Unknown_Source') 
 
+        if not user_id:
+            return jsonify({"error": "Missing user_id"}), 400
+
         conn = mysql.connector.connect(**MYSQL_CONFIG)
         cursor = conn.cursor(dictionary=True)
         
-        # 1. เช็คใน Database ก่อนว่ามีไหม
+        # 1. เช็คใน Database MySQL
         cursor.execute("SELECT label FROM cookies WHERE name=%s AND domain=%s LIMIT 1", (name, domain))
         result = cursor.fetchone()
 
@@ -140,43 +130,28 @@ def predict():
             label = result['label']
             source = "database"
         else:
-            # 2. ถ้าไม่มีใน Database ให้ AI ทำนาย
+            # 2. ถ้าไม่มีให้ AI ทำนาย
             try:
                 text = f"{name} | {domain}"
+                inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=64).to(device)
                 
-                # แปลงข้อความเป็นตัวเลข
-                inputs = tokenizer(
-                    text, 
-                    return_tensors="pt", 
-                    truncation=True, 
-                    padding=True, 
-                    max_length=64
-                ).to(device)
-                
-                # ให้ AI ทำนาย
                 with torch.no_grad():
-                    outputs = model(
-                        input_ids=inputs["input_ids"], 
-                        attention_mask=inputs["attention_mask"]
-                    )
+                    outputs = model(**inputs)
                     pred_id = torch.argmax(outputs.logits, dim=-1).item()
                     label = ID2LABEL[pred_id]
-                    
-                    print(f"[SUCCESS] AI Predicted: {name} => {label}")
-                    
             except Exception as e:
                 print(f"[ERROR] AI Prediction Failed: {e}")
                 label = "Unknown"
 
-            # บันทึกสิ่งที่ทำนายลง Database
+            # บันทึกลง MySQL
             sql = "INSERT INTO cookies (name, domain, label, label_source) VALUES (%s, %s, %s, 'ai_predicted') ON DUPLICATE KEY UPDATE label=%s"
             cursor.execute(sql, (name, domain, label, label))
             conn.commit()
         
         conn.close()
 
-        # Send to Neo4j
-        push_to_neo4j(source_site, domain, label)
+        # 3. ส่งข้อมูลไป Neo4j โดยระบุ user_id
+        push_to_neo4j(user_id, source_site, domain, label)
 
         return jsonify({"source": source, "label": label})
 
@@ -186,55 +161,55 @@ def predict():
 
 @app.route('/graph-data', methods=['GET'])
 def get_graph_data():
-    target_site = request.args.get('site')
+    user_id = request.args.get('user_id') # รับ user_id เพื่อกรองข้อมูล
     nodes = []
     edges = []
     node_ids = set()
 
+    if not user_id:
+        return jsonify({"nodes": [], "edges": []})
+
     try:
         if driver:
             with driver.session() as session:
-                if target_site:
-                    query = """
-                    MATCH (s:Website {name: $site})-[r1]->(m)
-                    OPTIONAL MATCH (m)-[r2]->(p)
-                    RETURN s, r1, m, r2, p
-                    """
-                    result = session.run(query, site=target_site)
-                else:
-                    query = "MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 100"
-                    result = session.run(query)
+                # Query ดึงเฉพาะประวัติที่เชื่อมโยงกับ User คนนี้เท่านั้น
+                query = """
+                MATCH (u:User {id: $u_id})-[:OWNS_HISTORY]->(n:Website)-[r:SENDS_DATA_TO]->(m:Tracker)
+                RETURN n, r, m
+                """
+                result = session.run(query, u_id=user_id)
 
                 for record in result:
-                    items = [('n', 'r', 'm')] if not target_site else [('s', 'r1', 'm'), ('m', 'r2', 'p')]
-                    for n_key, r_key, m_key in items:
-                        n = record.get(n_key)
-                        m = record.get(m_key)
-                        r = record.get(r_key)
+                    n = record['n']
+                    m = record['m']
+                    r = record['r']
 
-                        if n and n.element_id not in node_ids:
-                            nodes.append({
-                                "id": n.element_id,
-                                "label": n.get("name", "Unknown"),
-                                "group": "website" if "Website" in n.labels else "tracker"
-                            })
-                            node_ids.add(n.element_id)
+                    # สร้าง Node Website
+                    if n and n.element_id not in node_ids:
+                        nodes.append({
+                            "id": n.element_id,
+                            "label": n.get("name", "Unknown"),
+                            "group": "website"
+                        })
+                        node_ids.add(n.element_id)
 
-                        if m and m.element_id not in node_ids:
-                            nodes.append({
-                                "id": m.element_id,
-                                "label": m.get("name", "Unknown"),
-                                "group": "website" if "Website" in m.labels else "tracker"
-                            })
-                            node_ids.add(m.element_id)
+                    # สร้าง Node Tracker
+                    if m and m.element_id not in node_ids:
+                        nodes.append({
+                            "id": m.element_id,
+                            "label": m.get("name", "Unknown"),
+                            "group": "tracker"
+                        })
+                        node_ids.add(m.element_id)
 
-                        if n and m and r:
-                            edges.append({
-                                "from": n.element_id,
-                                "to": m.element_id,
-                                "label": r.get("type", "LINK"),
-                                "arrows": "to"
-                            })
+                    # สร้างเส้นเชื่อม
+                    if n and m and r:
+                        edges.append({
+                            "from": n.element_id,
+                            "to": m.element_id,
+                            "label": r.get("type", "LINK"),
+                            "arrows": "to"
+                        })
 
         return jsonify({"nodes": nodes, "edges": edges})
     except Exception as e:
@@ -243,7 +218,7 @@ def get_graph_data():
 
 if __name__ == '__main__':
     try:
-        print("Starting CookiesChecker Server...")
+        print("Starting CookiesChecker Server with Multi-User Support...")
         app.run(host='0.0.0.0', port=5000, threaded=True)
     finally:
         if driver:

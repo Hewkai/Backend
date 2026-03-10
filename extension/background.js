@@ -10,6 +10,26 @@ let userSettings = {
 const cache = {};
 const notifiedDomains = new Set();
 
+// ==========================================
+// 1. ฟังก์ชันจัดการ User ID (Isolation)
+// ==========================================
+async function getUserId() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(['cookies_user_id'], (result) => {
+            if (result.cookies_user_id) {
+                resolve(result.cookies_user_id);
+            } else {
+                // สร้าง ID สุ่มใหม่ถ้ายังไม่มี (สร้างครั้งเดียวตอนติดตั้ง)
+                const newId = 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+                chrome.storage.local.set({ cookies_user_id: newId }, () => {
+                    console.log("[CookiesChecker] New User ID generated:", newId);
+                    resolve(newId);
+                });
+            }
+        });
+    });
+}
+
 chrome.storage.local.get(['settings'], (res) => {
     if (res.settings) userSettings = res.settings;
 });
@@ -28,6 +48,9 @@ chrome.cookies.onChanged.addListener(async (changeInfo) => {
 
     if (userSettings.autoFilter === false) return;
 
+    // ดึง User ID ของเครื่องนี้
+    const userId = await getUserId();
+
     let currentSite = "Unknown_Source";
     try {
         const tabs = await chrome.tabs.query({active: true, currentWindow: true});
@@ -38,17 +61,21 @@ chrome.cookies.onChanged.addListener(async (changeInfo) => {
         console.warn("Could not get current tab URL:", e);
     }
 
-    const API_URL = "http://127.0.0.1:5000/predict";
+    // URL เซิร์ฟเวอร์ Azure ของคุณ
+    const API_URL = "http://20.222.122.108:5000/predict";
 
+    // กรณีมีข้อมูลใน Cache (เคยทายแล้วใน Session นี้)
     if (cache[key]) {
         const label = cache[key];
         processCookie(cookie, label);
         checkAndNotify(cookie.domain, label);
         
+        // ถึงจะมี Cache ก็ต้องส่งไปบอก Server เพื่อให้กราฟอัปเดต (พร้อม user_id)
         fetch(API_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
+                user_id: userId, // เพิ่ม user_id
                 name: cookie.name, 
                 domain: cookie.domain,
                 source_site: currentSite 
@@ -57,11 +84,13 @@ chrome.cookies.onChanged.addListener(async (changeInfo) => {
         return;
     }
 
+    // กรณีส่งไปทำนายใหม่
     try {
         const response = await fetch(API_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
+                user_id: userId, // เพิ่ม user_id
                 name: cookie.name, 
                 domain: cookie.domain,
                 source_site: currentSite 
