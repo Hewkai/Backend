@@ -123,7 +123,8 @@ def predict():
         cursor = conn.cursor(dictionary=True)
         
         # 1. เช็คใน Database MySQL
-        cursor.execute("SELECT label FROM cookies WHERE name=%s AND domain=%s LIMIT 1", (name, domain))
+        # cursor.execute("SELECT label FROM cookies WHERE name=%s AND domain=%s LIMIT 1", (name, domain))
+        cursor.execute("SELECT * FROM cookies WHERE domain LIKE %s ORDER BY id DESC LIMIT 200", ('%' + site + '%',) )
         result = cursor.fetchone()
 
         label = "Unknown"

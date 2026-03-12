@@ -36,8 +36,6 @@ chrome.storage.local.get(['settings'], (res) => {
     if (res.settings) userSettings = res.settings;
 });
 
-chrome.storage.local.set({blockedCounter});
-
 chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === "UPDATE_SETTINGS") {
         userSettings = msg.settings;
@@ -45,14 +43,21 @@ chrome.runtime.onMessage.addListener((msg) => {
 });
 
 chrome.tabs.onActivated.addListener(() => {
+
     blockedCounter = 0;
 
     chrome.action.setBadgeText({
         text: ""
     });
+
+    chrome.storage.local.set({
+        threatCount: 0
+    });
+
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+
     if (changeInfo.status === "loading") {
 
         blockedCounter = 0;
@@ -60,7 +65,13 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
         chrome.action.setBadgeText({
             text: ""
         });
+
+        chrome.storage.local.set({
+            threatCount: 0
+        });
+
     }
+
 });
 
 chrome.cookies.onChanged.addListener(async (changeInfo) => {
@@ -133,6 +144,7 @@ chrome.cookies.onChanged.addListener(async (changeInfo) => {
 });
 
 function updateBadge() {
+
     blockedCounter++;
 
     chrome.action.setBadgeText({
@@ -142,8 +154,12 @@ function updateBadge() {
     chrome.action.setBadgeBackgroundColor({
         color: "#E91E63"
     });
-}
 
+    // for popup UI
+    chrome.storage.local.set({
+        threatCount: blockedCounter
+    });
+}
 function processCookie(cookie, label) {
     if (label === "Strictly Necessary Cookies") return;
 
@@ -159,6 +175,7 @@ function processCookie(cookie, label) {
         });
     }
 }
+chrome.storage.local.get("threatCount", console.log)
     // updateBadge();
 
 // function checkAndNotify(domain, label) {

@@ -1,4 +1,3 @@
-chrome.action.setBadgeText({ text: "" });
 let cookieData = [];
 let currentPage = 1;    
 let cookieLogInterval = null;
@@ -123,6 +122,33 @@ if (btnCookieLog) {
         }
     });
 
+    //threat count
+    chrome.storage.local.get(["threatCount"], (res) => {
+
+        const count = res.threatCount || 0;
+
+        const threatEl = document.getElementById("threatCounter");
+
+        if(threatEl){
+            threatEl.textContent = `Potential Threat : ${count}`;
+        }
+        });
+
+    chrome.storage.onChanged.addListener((changes) => {
+
+        if(changes.threatCount){
+
+            const count = changes.threatCount.newValue;
+
+            const threatEl = document.getElementById("threatCounter");
+
+            if(threatEl){
+                threatEl.textContent = `Potential Threat : ${count}`;
+            }
+
+        }
+    });
+
     // --- HISTORY LOGIC (ซ่อนการดึงข้อมูลจาก Server) ---
     /*
     async function loadHistory() {
@@ -168,6 +194,11 @@ if (btnCookieLog) {
 let firstLoad = true;
 
 async function loadCookieLog() {
+    const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
+    let domain = tab?.url ? new URL(tab.url).hostname : "";
+    if (domain.startsWith("www.")) domain = domain.slice(4);
+    // Remove "www." prefix
+    if (domain.startsWith("www.")) domain = domain.slice(4);
 
     const listDiv = document.getElementById('cookieLogList');
 
@@ -184,22 +215,24 @@ async function loadCookieLog() {
     }
 
     try {
-
-    const res = await fetch('http://127.0.0.1:5000/history');
-
+    const res = await fetch(`http://127.0.0.1:5000/history?site=${domain}&ts=${Date.now()}`);
     if(!res.ok){
         throw new Error("Server response error: " + res.status);
     }
+        const newData = (await res.json());
+        console.log("API Response:", newData);
 
-    cookieData = await res.json();
-    console.log("Cookie Log Data:", cookieData);
-    firstLoad = false;
-    renderCookiePage();
+        const dedupedData = [...new Map(newData.map(c => [c.name + c.domain, c])).values()];
+        if (JSON.stringify(dedupedData) !== JSON.stringify(cookieData)) {
+            cookieData = dedupedData;
+            currentPage = 1;
+        }
+
+        firstLoad = false;
+        renderCookiePage();
  
     } catch(err){
-
         console.error("Server Error:", err);
-
         listDiv.innerHTML =
         '<p style="text-align:center;color:red;">Cannot connect to server</p>';
     }}
@@ -209,15 +242,20 @@ async function loadCookieLog() {
         
 
     function renderCookiePage(){
+    const checked = [...document.querySelectorAll('.cookie-filter input:checked')]
+    .map(c => c.value);
 
     const listDiv = document.getElementById('cookieLogList');
 
-    const checked = [...document.querySelectorAll('.cookie-filter input:checked')]
-        .map(c=>c.value);
-
     const filtered = cookieData.filter(c => {
-        const label = c.label || c.labels || "Unknown";
-        return checked.some(v => label.toLowerCase().includes(v.toLowerCase()));
+        let label = (c.label || c.labels || "Unknown").toLowerCase();
+        if (label.includes("necessary")) label = "Necessary";
+        else if (label.includes("performance")) label = "Performance";
+        else if (label.includes("functionality")) label = "Functionality";
+        else if (label.includes("advertising") || label.includes("tracking")) label = "Tracking";
+        else label = "Unknown";
+
+        return checked.includes(label);
     });
 
     const start = (currentPage-1) * itemsPerPage;
@@ -228,13 +266,15 @@ async function loadCookieLog() {
     pageItems.forEach(item => {
 
     const label = item.label || item.labels || "Unknown";
-    const domain = item.domain ? item.domain.replace(/^\./,'') : "Unknown";
+    const domain = item.domain || "Unknown";
     const name = item.name || "Unnamed Cookie";
+
+    const maxLength = 30; // max characters to display
 
     const html = `
     <div class="card">
-        <div class="card-title">${domain}</div>
-        <div style="font-size:12px;color:#666">${name}</div>
+        <div class="card-title">${domain.length > maxLength ? domain.slice(0, maxLength) + '...' : domain}</div>
+        <div class="cookie-name">${name.length > maxLength ? name.slice(0, maxLength) + '...' : name}</div>
         <div class="cookie-label">${label}</div>
     </div>
     `;
@@ -304,4 +344,30 @@ function renderPagination(total){
             chrome.runtime.sendMessage({ type: "UPDATE_SETTINGS", settings });
         });
     });
+
+    const themeSelect = document.getElementById("themeSelect");
+
+    chrome.storage.local.get(["theme"], (res)=>{
+        const theme = res.theme || "light";
+
+        themeSelect.value = theme;
+
+        if(theme === "dark"){
+            document.body.classList.add("dark");
+        }
+    });
+
+    themeSelect.addEventListener("change", ()=>{
+        const selected = themeSelect.value;
+
+        if(selected === "dark"){
+            document.body.classList.add("dark");
+        }else{
+            document.body.classList.remove("dark");
+        }
+
+        chrome.storage.local.set({theme:selected});
+    });
+    console.log("Fetching cookies for domain:", domain);
+
 });

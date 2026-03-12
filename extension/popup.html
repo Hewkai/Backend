@@ -4,7 +4,39 @@
     <meta charset="UTF-8">
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
-        body { width: 360px; margin: 0; padding: 0; font-family: 'Kanit', sans-serif; background: #f8f9fa; }
+
+    :root{
+    --bg: #f8f9fa;
+    --card: #ffffff;
+    --text: #333;
+    --subtext: #888;
+    --border: #eee;
+    }
+
+    /* Dark theme */
+    body.dark{
+        --bg: #1e1e1e;
+        --card: #2a2a2a;
+        --text: #f1f1f1;
+        --subtext: #aaa;
+        --border: #3a3a3a;
+    }
+
+    body.dark .theme-dropdown{
+    background:#2a2a2a;
+    color:#fff;
+    border:1px solid #444;}
+
+    body{
+    width:360px;
+    margin:0;
+    padding:0;
+    font-family:'Kanit',sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    transition: all 0.25s ease;
+}
+    
         
         /* Header */
         .header {
@@ -35,14 +67,43 @@
         .page.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
+        /* Icon */
+        .shield-icon{
+    width:80px;
+    margin-bottom:15px;
+    border-radius:50%;
+    animation: shieldBreath 3s ease-in-out infinite;
+}
+
+/* breathing animation */
+@keyframes shieldBreath{
+
+    0%{
+        transform: scale(1);
+        filter: drop-shadow(0 0 0px rgba(242, 170, 255, 0.3));
+    }
+
+    50%{
+        transform: scale(1.08);
+        filter: drop-shadow(0 0 12px rgba(255, 70, 132, 0.5));
+    }
+
+    100%{
+        transform: scale(1);
+        filter: drop-shadow(0 0 0px rgba(206, 95, 225, 0.3));
+    }
+
+}
+
         /* --- New: Settings Navbar (Tabs) --- */
         .nav-tabs {
-            display: flex;
-            justify-content: space-between;
-            background: #eee;
-            border-radius: 10px;
-            padding: 4px;
-            margin-bottom: 15px;
+            display:flex;
+            justify-content:space-between;
+            background: var(--card);
+            border:1px solid var(--border);
+            border-radius:10px;
+            padding:4px;
+            margin-bottom:15px;
         }
         .nav-tab {
             flex: 1;
@@ -64,12 +125,30 @@
         .tab-content.active { display: block; animation: fadeIn 0.2s; }
 
         /* Card */
-        .card { background: white; border-radius: 16px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #eee; }
+    
+        /*.card { background: white; border-radius: 16px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #eee; } -->*/
+        .card{
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius:16px;
+    padding:15px;
+    margin-bottom:15px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.04);}
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
-        .card-title { font-weight: 600; color: #333; font-size: 14px; }
+        /* Truncate long cookie names and domains with ellipsis */
+    .card-title,
+    .cookie-name {
+        white-space: nowrap;       /* keep on one line */
+        overflow: hidden;          /* hide overflow */
+        text-overflow: ellipsis;   /* show "..." */
+    }
         
-        .desc-text { font-size: 11px; color: #888; margin: 0; line-height: 1.4; padding-right: 40px; }
-        .item-row { margin-bottom: 15px; border-bottom: 1px solid #f0f0f0; padding-bottom: 10px; }
+        .desc-text{
+    color: var(--subtext);}
+       .item-row{
+    margin-bottom:15px;
+    border-bottom:1px solid var(--border);
+    padding-bottom:10px;}
         .item-row:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
 
         /* Buttons */
@@ -99,102 +178,116 @@
         input:checked + .slider:before { transform: translateX(20px); }
         input:disabled + .slider { background-color: #ccc; cursor: not-allowed; }
 
-.cookie-filter{
-    display:flex;
-    flex-wrap:wrap;
-    gap:8px;
-    margin-bottom:10px;
-    font-size:11px;
-}
-
-.cookie-filter label{
-    background:white;
-    padding:4px 8px;
-    border-radius:6px;
-    border:1px solid #eee;
-    cursor:pointer;
-}
-
-/* Center loading */
-.cookie-loading{
-    display:flex;
-    flex-direction:column;
-    justify-content:center;
-    align-items:center;
-    height:320px;
-    text-align:center;
-}
-
-/* loading text */
-.cookie-loading-text{
-    font-size:13px;
-    color:#777;
-    margin-bottom:12px;
-}
-
-/* dots container */
-.cookie-dots{
-    display:flex;
-    gap:8px;
-}
-
-/* dots */
-.cookie-dots span{
-    width:10px;
-    height:10px;
-    border-radius:50%;
-    background:linear-gradient(135deg,#9C27B0,#E91E63);
-    animation:cookieBounce 1.2s infinite ease-in-out;
-}
-
-/* delay */
-.cookie-dots span:nth-child(2){
-    animation-delay:0.2s;
-}
-
-.cookie-dots span:nth-child(3){
-    animation-delay:0.4s;
-}
-
-/* animation */
-@keyframes cookieBounce{
-    0%,80%,100%{
-        transform:scale(0.5);
-        opacity:0.4;
-    }
-    40%{
-        transform:scale(1);
-        opacity:1;
-    }
-}
-
-.cookie-name{
-    font-size:12px;
-    color:#777;
-    margin-top:3px;
-}
-
-.cookie-label{
-    font-size:11px;
+    .threat-count {
     color:#E91E63;
-    margin-top:4px;
-}
+    font-weight:600;}
 
-.pagination{
-    display:flex;
-    justify-content:center;
-    gap:10px;
-    margin-top:10px;
-}
+    .cookie-filter{
+        display:flex;
+        flex-wrap:wrap;
+        gap:8px;
+        margin-bottom:10px;
+        font-size:11px;
+    }
 
-.pagination button{
-    padding:4px 10px;
-    border:none;
-    border-radius:6px;
-    background:#9c27b0;
-    color:white;
-    cursor:pointer;
-}
+    .cookie-filter label{
+        background: var(--card);
+        color: var(--text);
+        padding:4px 8px;
+        border-radius:6px;
+        border:1px solid var(--border);
+        cursor:pointer;
+    }
+
+    /* Center loading */
+    .cookie-loading{
+        display:flex;
+        flex-direction:column;
+        justify-content:center;
+        align-items:center;
+        height:320px;
+        text-align:center;
+    }
+
+    /* loading text */
+    .cookie-loading-text{
+        font-size:13px;
+        color:var(--subtext);
+        margin-bottom:12px;
+    }
+
+    /* dots container */
+    .cookie-dots{
+        display:flex;
+        gap:8px;
+    }
+
+    /* dots */
+    .cookie-dots span{
+        width:10px;
+        height:10px;
+        border-radius:50%;
+        background:linear-gradient(135deg,#9C27B0,#E91E63);
+        animation:cookieBounce 1.2s infinite ease-in-out;
+    }
+
+    /* delay */
+    .cookie-dots span:nth-child(2){
+        animation-delay:0.2s;
+    }
+
+    .cookie-dots span:nth-child(3){
+        animation-delay:0.4s;
+    }
+
+    /* animation */
+    @keyframes cookieBounce{
+        0%,80%,100%{
+            transform:scale(0.5);
+            opacity:0.4;
+        }
+        40%{
+            transform:scale(1);
+            opacity:1;
+        }
+    }
+
+    .cookie-name{
+        font-size:12px;
+        color:var(--subtext);
+        margin-top:3px;
+    }
+
+    .cookie-label{
+        font-size:11px;
+        color:#E91E63;
+        margin-top:4px;
+    }
+
+    .pagination{
+        display:flex;
+        justify-content:center;
+        gap:10px;
+        margin-top:10px;
+    }
+
+    .pagination button{
+        padding:4px 10px;
+        border:none;
+        border-radius:6px;
+        background:#9c27b0;
+        color:white;
+        cursor:pointer;
+    }
+
+    .theme-dropdown{
+        padding:4px 8px;
+        border-radius:6px;
+        border:1px solid #ddd;
+        font-size:11px;
+        font-family:'Kanit', sans-serif;
+        cursor:pointer;
+    }
     </style>
 </head>
 <body>
@@ -208,9 +301,11 @@
         
         <div id="homePage" class="page active">
             <div class="card" style="text-align: center; padding: 30px 15px;">
-                <img src="icon_Home.png" width="80" style="margin-bottom: 15px; border-radius: 50%;">
+                <!-- <img src="icon_Home.png" width="80" style="margin-bottom: 15px; border-radius: 50%;"> -->
+                <img src="icon_Home.png" class="shield-icon">
                 <p style="color: #888; font-size: 12px; margin: 0;">Current Website</p>
-                <h3 id="currentDomain" style="margin: 5px 0 0 0; color: #E91E63;">Loading...</h3>
+                <h2 id="currentDomain" style="margin: 5px 0 0 0; color: #ad3dd6;">Loading...</h2>
+                <h3 id="threatCounter" style="margin: 5px 0 0 0; color: #E91E63;">Potential Threat : 0</h3>
             </div>
             
             <button class="btn-main btn-graph" id="btnOpenGraph">View Graph Relationship</button>
@@ -286,8 +381,16 @@
             <div id="tabPersonal" class="tab-content">
                 <div class="card">
                     <div class="item-row">
-                        <div class="card-header"><span class="card-title">Theme</span></div>
-                        <p class="desc-text">Light Mode (Default)</p>
+                        <div class="card-header">
+                            <span class="card-title">Theme</span>
+
+                            <select id="themeSelect" class="theme-dropdown">
+                                <option value="light">Light</option>
+                                <option value="dark">Dark</option>
+                            </select>
+
+                        </div>
+                        <p class="desc-text">Choose the extension appearance.</p>
                     </div>
                     <div class="item-row">
                         <div class="card-header"><span class="card-title">Language</span></div>
@@ -300,7 +403,7 @@
                 <div class="card" style="text-align: center;">
                     <img src="icon_About.png" width="60" style="margin-bottom: 10px; border-radius: 12px;">
                     
-                    <h3 style="margin:0; color:#333;">CookiesChecker</h3>
+                    <h3 style="margin:0;" class="card-title">CookiesChecker</h3>
                     <p style="color:#888; font-size:12px; margin: 5px 0 0 0;">Version 1.0</p>
                     
                     <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
