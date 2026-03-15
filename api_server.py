@@ -123,8 +123,7 @@ def predict():
         cursor = conn.cursor(dictionary=True)
         
         # 1. เช็คใน Database MySQL
-        # cursor.execute("SELECT label FROM cookies WHERE name=%s AND domain=%s LIMIT 1", (name, domain))
-        cursor.execute("SELECT * FROM cookies WHERE domain LIKE %s ORDER BY id DESC LIMIT 200", ('%' + site + '%',) )
+        cursor.execute("SELECT label FROM cookies WHERE name=%s AND domain=%s LIMIT 1", (name, domain))
         result = cursor.fetchone()
 
         label = "Unknown"
@@ -136,7 +135,6 @@ def predict():
         else:
             # 2. ถ้าไม่มีให้ AI ทำนาย
             try:
-                # text = f"{name} | {domain}"
                 text = f"cookie_name={name}; domain={domain}"
                 inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=64).to(device)
                 
@@ -167,6 +165,8 @@ def predict():
 @app.route('/graph-data', methods=['GET'])
 def get_graph_data():
     user_id = request.args.get('user_id') # รับ user_id เพื่อกรองข้อมูล
+    site = request.args.get('site')       # รับชื่อเว็บไซต์จากหน้าบ้าน (ถ้ามี)
+    
     nodes = []
     edges = []
     node_ids = set()
@@ -177,19 +177,31 @@ def get_graph_data():
     try:
         if driver:
             with driver.session() as session:
-                # Query ดึงเฉพาะประวัติที่เชื่อมโยงกับ User คนนี้เท่านั้น
-                query = """
-                MATCH (u:User {id: $u_id})-[:OWNS_HISTORY]->(n:Website)-[r:SENDS_DATA_TO]->(m:Tracker)
-                RETURN n, r, m
-                """
-                result = session.run(query, u_id=user_id)
+                # ถ้ามีการส่ง site มา ให้กรองดูกราฟเฉพาะเว็บนั้น
+                if site:
+                    query = """
+                    MATCH (u:User {id: $u_id})-[:OWNS_HISTORY]->(n:Website)-[r:SENDS_DATA_TO]->(m:Tracker)
+                    WHERE n.name CONTAINS $site
+                    RETURN n, r, m
+                    """
+                    result = session.run(query, u_id=user_id, site=site)
+                
+                # ถ้าไม่มีการส่ง site มา (เช่น เปิดจาก New Tab) ให้ดึงแค่ 200 รายการล่าสุดเพื่อลดอาการกระตุก
+                else:
+                    query = """
+                    MATCH (u:User {id: $u_id})-[:OWNS_HISTORY]->(n:Website)-[r:SENDS_DATA_TO]->(m:Tracker)
+                    RETURN n, r, m
+                    ORDER BY r.last_seen DESC
+                    LIMIT 200
+                    """
+                    result = session.run(query, u_id=user_id)
 
                 for record in result:
                     n = record['n']
                     m = record['m']
                     r = record['r']
 
-                    # สร้าง Node Website
+                    # สร้าง Node Website (โหนดสีเขียว)
                     if n and n.element_id not in node_ids:
                         nodes.append({
                             "id": n.element_id,
@@ -198,7 +210,7 @@ def get_graph_data():
                         })
                         node_ids.add(n.element_id)
 
-                    # สร้าง Node Tracker
+                    # สร้าง Node Tracker (โหนดสีแดง)
                     if m and m.element_id not in node_ids:
                         nodes.append({
                             "id": m.element_id,
@@ -240,7 +252,7 @@ def get_history():
             cursor.execute("""
                 SELECT name, domain, label
                 FROM cookies
-                ORDER BY domain desc
+                ORDER BY id DESC
                 LIMIT 100
             """)
 
@@ -252,6 +264,7 @@ def get_history():
     except Exception as e:
         print("[ERROR] History API:", e)
         return jsonify([])
+
 if __name__ == '__main__':
     try:
         print("Starting CookiesChecker Server with Multi-User Support...")

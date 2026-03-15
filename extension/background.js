@@ -102,7 +102,7 @@ chrome.cookies.onChanged.addListener(async (changeInfo) => {
     if (cache[key]) {
         const label = cache[key];
         processCookie(cookie, label);
-        checkAndNotify(cookie.domain, label);
+        // checkAndNotify(cookie.domain, label);
         
         // ถึงจะมี Cache ก็ต้องส่งไปบอก Server เพื่อให้กราฟอัปเดต (พร้อม user_id)
         fetch(API_URL, {
